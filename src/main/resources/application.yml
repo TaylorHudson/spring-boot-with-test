@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/employee_directory
+    username: root
+    password: root
+
+  main:
+    banner-mode: "off"
