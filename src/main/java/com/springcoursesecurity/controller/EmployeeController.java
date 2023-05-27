@@ -52,7 +52,7 @@ public class EmployeeController {
     }
 
     @DeleteMapping("/employees/{id}")
-    public ResponseEntity<String> update(@PathVariable Integer id) {
+    public ResponseEntity<String> deleteById(@PathVariable Integer id) {
         Employee entity = employeeService.findById(id);
 
         if (entity == null)

@@ -2,50 +2,49 @@ package com.springcoursesecurity.controller;
 
 import com.springcoursesecurity.entity.Employee;
 import com.springcoursesecurity.service.EmployeeService;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.util.Collections;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.core.Is.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(EmployeeController.class)
 class EmployeeControllerTest {
 
-    @Mock
+    @MockBean
     EmployeeService employeeService;
 
-    @InjectMocks
-    EmployeeController employeeController;
-
+    @Autowired
     MockMvc mockMvc;
 
     List<Employee> employees;
 
-    @BeforeEach
-    void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(employeeController).build();
+    @AfterEach
+    void tearDown() {
+        reset(employeeService);
     }
 
     @Test
-    void controllerFindAllTest() throws Exception {
+    @WithMockUser(roles = {"EMPLOYEE","MANAGER","ADMIN"})
+    void shouldReturnAllEmployee() throws Exception {
         var emp = Employee.builder()
                 .id(1)
                 .email("emp1@example.com")
@@ -57,6 +56,7 @@ class EmployeeControllerTest {
         given(employeeService.findAll()).willReturn(employees);
 
         mockMvc.perform(get("/api/v1/employees"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id").value(1))
@@ -66,30 +66,8 @@ class EmployeeControllerTest {
     }
 
     @Test
-    void findAllTest() {
-        var emp = Employee.builder()
-                .id(1)
-                .email("emp1@example.com")
-                .firstName("emp")
-                .lastName("1")
-                .build();
-        employees = Collections.singletonList(emp);
-
-        given(employeeService.findAll()).willReturn(employees);
-
-        var response = employeeController.findAll();
-        var employeeList = response.getBody();
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(employeeList).isNotNull().hasSize(1);
-        assertThat(employeeList.get(0).getId()).isEqualTo(1);
-        assertThat(employeeList.get(0).getEmail()).isEqualTo("emp1@example.com");
-
-        then(employeeService).should().findAll();
-    }
-
-    @Test
-    void controllerFindByIdTest() throws Exception {
+    @WithMockUser(roles = {"EMPLOYEE","MANAGER","ADMIN"})
+    void shouldReturnSingleEmployee() throws Exception {
         var mock = Employee.builder()
                 .id(10)
                 .email("mock@example.com")
@@ -98,16 +76,18 @@ class EmployeeControllerTest {
                 .build();
         given(employeeService.findById(anyInt())).willReturn(mock);
 
-        mockMvc.perform(get("/api/v1/employees/10"))
+        mockMvc.perform(get("/api/v1/employees/" + mock.getId()))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(10))
-                .andExpect(jsonPath("$.email").value("mock@example.com"));
+                .andExpect(jsonPath("$.id", is(mock.getId())))
+                .andExpect(jsonPath("$.email", is("mock@example.com")));
 
         then(employeeService).should().findById(anyInt());
     }
 
     @Test
-    void controllerSaveTest() throws Exception {
+    @WithMockUser(roles = {"MANAGER","ADMIN"})
+    void shouldSaveEmployee() throws Exception {
         var mock = Employee.builder()
                 .id(5)
                 .email("mock2@example.com")
@@ -117,11 +97,11 @@ class EmployeeControllerTest {
         given(employeeService.save(any(Employee.class))).willReturn(mock);
 
         mockMvc.perform(post("/api/v1/employees")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                        "{\"email\":\"mock2@example.com\"," +
-                        " \"first_name\":\"mock\"," +
-                        "\"last_name\":\"test\"}")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            "{\"email\":\"mock2@example.com\"," +
+                            " \"first_name\":\"mock\"," +
+                            "\"last_name\":\"test\"}")
                 )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(5))
@@ -131,11 +111,34 @@ class EmployeeControllerTest {
     }
 
     @Test
-    void update() {
+    @WithMockUser(roles = {"EMPLOYEE"})
+    void shouldFailBecauseUserDoesNotHavePermission() throws Exception {
+        var mock = Employee.builder()
+                .id(3)
+                .email("mock3@example.com")
+                .firstName("mock3")
+                .lastName("test")
+                .build();
+        given(employeeService.save(any(Employee.class))).willReturn(mock);
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"mock2@example.com\"," +
+                                        " \"first_name\":\"mock\"," +
+                                        "\"last_name\":\"test\"}")
+                )
+                .andExpect(status().isForbidden());
+
+        then(employeeService).should(never()).save(any(Employee.class));
     }
 
     @Test
-    void testUpdate() {
+    void updateTest() {
+    }
+
+    @Test
+    void deleteById() {
     }
 
 }

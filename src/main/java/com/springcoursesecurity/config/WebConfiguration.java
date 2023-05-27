@@ -14,6 +14,11 @@ import javax.sql.DataSource;
 public class WebConfiguration {
 
     private static final String BASE_URI_EMPLOYEES = "/api/v1/employees";
+    private static final String ADMIN = "ADMIN";
+    private static final String MANAGER = "MANAGER";
+    private static final String EMPLOYEE = "EMPLOYEE";
+    private static final String[] EMPLOYEE_MANAGER_ADMIN = {EMPLOYEE,MANAGER,ADMIN};
+    private static final String[] MANAGER_ADMIN = {MANAGER, ADMIN};
 
     @Bean
     public UserDetailsManager userDetailsManager(DataSource source) {
@@ -27,11 +32,11 @@ public class WebConfiguration {
         http.csrf().disable();
 
         http.authorizeHttpRequests()
-            .requestMatchers(HttpMethod.GET, BASE_URI_EMPLOYEES).hasRole("EMPLOYEE")
-            .requestMatchers(HttpMethod.GET, BASE_URI_EMPLOYEES +"/**").hasRole("EMPLOYEE")
-            .requestMatchers(HttpMethod.POST, BASE_URI_EMPLOYEES).hasRole("MANAGER")
-            .requestMatchers(HttpMethod.PUT, BASE_URI_EMPLOYEES).hasRole("MANAGER")
-            .requestMatchers(HttpMethod.DELETE, BASE_URI_EMPLOYEES + "/{id}").hasRole("ADMIN");
+                .requestMatchers(HttpMethod.GET, BASE_URI_EMPLOYEES).hasAnyRole(EMPLOYEE_MANAGER_ADMIN)
+            .requestMatchers(HttpMethod.GET, BASE_URI_EMPLOYEES +"/**").hasAnyRole(EMPLOYEE_MANAGER_ADMIN)
+            .requestMatchers(HttpMethod.POST, BASE_URI_EMPLOYEES).hasAnyRole(MANAGER_ADMIN)
+            .requestMatchers(HttpMethod.PUT, BASE_URI_EMPLOYEES).hasAnyRole(MANAGER_ADMIN)
+            .requestMatchers(HttpMethod.DELETE, BASE_URI_EMPLOYEES + "/{id}").hasAnyRole(ADMIN);
 
         return http.build();
     }
